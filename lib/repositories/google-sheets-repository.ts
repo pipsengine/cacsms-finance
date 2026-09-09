@@ -1,22 +1,11 @@
 import crypto from "node:crypto";
-import { readFileSync } from "node:fs";
+import { getGoogleCredentials } from "@/lib/google-credentials";
 import { FinanceRepository } from "@/lib/repositories/finance-repository";
 import { Transaction } from "@/lib/types/finance";
 
 function b64(input:Buffer|string){return Buffer.from(input).toString("base64").replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_")}
-function credentials(){
- const email=process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,key=process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
- if(email&&key)return{email,key:key.replace(/\\n/g,"\n")};
- const path=process.env.GOOGLE_APPLICATION_CREDENTIALS;
- if(!path)throw new Error("Google service account is not configured");
- try{
-  const file=JSON.parse(readFileSync(path,"utf8")) as {client_email?:unknown;private_key?:unknown};
-  if(typeof file.client_email!=="string"||typeof file.private_key!=="string")throw new Error("Credential fields are missing");
-  return{email:file.client_email,key:file.private_key};
- }catch(error){throw new Error("Could not load Google service account credentials",{cause:error})}
-}
 async function token(){
- const {email,key}=credentials();
+ const {email,key}=getGoogleCredentials();
  const now=Math.floor(Date.now()/1000),h=b64(JSON.stringify({alg:"RS256",typ:"JWT"})),p=b64(JSON.stringify({iss:email,scope:"https://www.googleapis.com/auth/spreadsheets",aud:"https://oauth2.googleapis.com/token",exp:now+3600,iat:now}));
  const u=`${h}.${p}`,sig=crypto.sign("RSA-SHA256",Buffer.from(u),key),assertion=`${u}.${b64(sig)}`;
  const res=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion}),cache:"no-store"});

@@ -4,7 +4,19 @@
 
 ## Main experience
 
+### Accounts, subscriptions, and administration
+
+- Registration with unique usernames and login by email or username
+- Salted `scrypt` password hashes
+- HTTP-only opaque session cookies and per-user transaction isolation
+- Free, Personal, Business, and Pro plans with feature entitlements
+- 14-day Business trial for new accounts
+- Customer pricing and subscription management
+- Role-protected administration for users, plans, subscriptions, payments, and audit history
+- Protected Global Super Administrator accounts with immutable Unlimited access
+
 ### 1. Overview
+
 - Live money-in, money-out, net-position and daily-position cards
 - Fast Money In / Money Out entry
 - Full transaction create, edit and delete flow
@@ -17,6 +29,7 @@
 - Ask Cacsms conversational financial analysis
 
 ### 2. Reports & Insights
+
 - Monthly, quarterly, yearly and custom-date reporting
 - Income, expense, net and health KPIs
 - 12-month income/expense trend
@@ -31,7 +44,9 @@
 
 The application uses a private Google Sheet through a Google Cloud service account. Google Sheets configuration is required; there is no mock-data or in-memory fallback.
 
-Create a worksheet named exactly `Transactions` with the following row-1 columns:
+The application uses `Transactions`, `Users`, `Sessions`, `Plans`, `Subscriptions`, `Payments`, and `AuditLog`. Missing platform worksheets are created automatically. See `GOOGLE-SHEETS-SCHEMA.md` for the complete structure.
+
+The `Transactions` worksheet uses these row-1 columns:
 
 ```text
 TransactionID | UserID | Date | Type | Amount | Category | Account | PaymentMethod | Description | Reference | CreatedAt | UpdatedAt | Reserved
@@ -40,6 +55,7 @@ TransactionID | UserID | Date | Type | Amount | Category | Account | PaymentMeth
 A ready-made CSV header template is included as `GOOGLE-SHEETS-TEMPLATE.csv`.
 
 ### Setup
+
 1. Create a Google Cloud project.
 2. Enable Google Sheets API.
 3. Create a Service Account and JSON key.
@@ -47,7 +63,10 @@ A ready-made CSV header template is included as `GOOGLE-SHEETS-TEMPLATE.csv`.
 5. Share the spreadsheet with the service-account email as **Editor**.
 6. Copy `.env.example` to `.env.local`.
 7. Add the spreadsheet ID and `GOOGLE_APPLICATION_CREDENTIALS` path to `.env.local`. Alternatively, add the service-account email and private key directly.
-8. Run `npm install` then `npm run dev`.
+8. For a new installation, set `BOOTSTRAP_ADMIN_EMAIL` and a unique `BOOTSTRAP_ADMIN_PASSWORD` of at least 12 characters. They are used only while initializing an empty `Users` worksheet.
+9. Run `npm install` then `npm run dev`.
+
+Set `GLOBAL_ADMIN_USERNAME`, `GLOBAL_ADMIN_EMAIL`, and `GLOBAL_ADMIN_PASSWORD` to provision the protected Global Super Administrator. After provisioning, its password hash, immutable role, and Unlimited subscription are stored in Google Sheets.
 
 The Google repository supports list, create, edit and delete (delete clears the matching sheet row). The repository interface is intentionally storage-agnostic so a future MSSQL repository can replace Google Sheets without redesigning the UI.
 
@@ -56,6 +75,7 @@ The Google repository supports list, create, edit and delete (delete clears the 
 The included analyst is deterministic and privacy-friendly: it answers common questions from the recorded transaction dataset without sending financial records to an external model. A production LLM can later be connected behind the server-side analysis service for richer narratives.
 
 Supported question families include:
+
 - Where did my money go?
 - Am I doing better than last month?
 - Will my money last until month-end?
@@ -79,10 +99,12 @@ Set these environment variables for Production and Preview in the Vercel project
 GOOGLE_SHEETS_SPREADSHEET_ID
 GOOGLE_SERVICE_ACCOUNT_EMAIL
 GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+BOOTSTRAP_ADMIN_EMAIL
+BOOTSTRAP_ADMIN_PASSWORD
 ```
 
 Use the complete service-account private key, including its BEGIN/END lines. `GOOGLE_APPLICATION_CREDENTIALS` is intended for local development only because the downloaded credential file is not present in a Vercel deployment. Once the variables are configured, deployments from `main` use the live Google Sheet automatically.
 
 ## Production hardening before public launch
 
-Add real authentication and per-user authorization, encrypted secret management, server-side validation, rate limiting, backups, privacy/terms pages, audit logging, data-retention rules, and a persistent user/profile store. Google Sheets is appropriate for the initial MVP but should be migrated when transaction volume and concurrency grow materially.
+Add rate limiting, email verification and password recovery, backups, privacy/terms pages, and data-retention rules. Google Sheets is appropriate for the initial MVP but should be migrated to a transactional database when usage and concurrency grow materially.

@@ -1,16 +1,383 @@
 "use client";
-import {useEffect,useMemo,useState} from "react";import Shell from "@/components/Shell";import TransactionModal from "@/components/TransactionModal";import AskCacsms from "@/components/AskCacsms";import {Icon} from "@/components/Icons";import {TrendChart,Donut} from "@/components/Charts";import {Transaction} from "@/lib/types/finance";
-const money=(n:number)=>new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN",maximumFractionDigits:0}).format(n),sum=(a:Transaction[],t:"income"|"expense")=>a.filter(x=>x.type===t).reduce((s,x)=>s+x.amount,0);
-export default function Dashboard(){const[txs,setTxs]=useState<Transaction[]>([]),[analysis,setAnalysis]=useState<any>(null),[loading,setLoading]=useState(true),[deleting,setDeleting]=useState("");
- const refresh=async()=>{setLoading(true);const[t,a]=await Promise.all([fetch("/api/transactions",{cache:"no-store"}).then(r=>r.json()),fetch("/api/analysis",{cache:"no-store"}).then(r=>r.json())]);setTxs(t);setAnalysis(a);setLoading(false)};useEffect(()=>{refresh()},[]);
- const month=useMemo(()=>{const n=new Date();return txs.filter(t=>{const d=new Date(t.date);return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()})},[txs]),today=useMemo(()=>{const s=new Date().toDateString();return txs.filter(t=>new Date(t.date).toDateString()===s)},[txs]),income=sum(month,"income"),expenses=sum(month,"expense"),net=income-expenses;
- const cats=useMemo(()=>{const m=new Map<string,number>();month.filter(t=>t.type==="expense").forEach(t=>m.set(t.category,(m.get(t.category)||0)+t.amount));return[...m].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value)},[month]);
- const trend=useMemo(()=>{const n=new Date();return Array.from({length:6},(_,i)=>{const d=new Date(n.getFullYear(),n.getMonth()-5+i,1),arr=txs.filter(t=>{const z=new Date(t.date);return z.getMonth()===d.getMonth()&&z.getFullYear()===d.getFullYear()});return{label:d.toLocaleString("en",{month:"short"}),income:sum(arr,"income"),expense:sum(arr,"expense")}})},[txs]);
- async function remove(id:string){if(!confirm("Delete this transaction?"))return;setDeleting(id);await fetch(`/api/transactions?id=${encodeURIComponent(id)}`,{method:"DELETE"});setDeleting("");refresh()}
- return <Shell><div className="page"><section className="welcome"><div><span className="eyebrow">YOUR MONEY, CLEARLY UNDERSTOOD</span><h1>Good afternoon, Chris.</h1><p>Your live financial position for {new Date().toLocaleString("en-NG",{month:"long",year:"numeric"})}.</p></div><div className="periodPill">This month</div></section>
- <section className="heroGrid"><div className="metric primaryMetric"><span className="metricIcon"><Icon name="wallet"/></span><p>Net position</p><h2>{loading?"—":money(net)}</h2><small>{income?`${Math.max(0,net/income*100).toFixed(0)}% of recorded income retained`:"Record income to begin"}</small></div><div className="metric"><span className="dot incomeDot"/><p>Money in</p><h2>{money(income)}</h2><small className={analysis?.incomeChange>=0?"up":"down"}>{analysis?`${analysis.incomeChange>=0?"↑":"↓"} ${Math.abs(analysis.incomeChange).toFixed(1)}% vs last month`:"—"}</small></div><div className="metric"><span className="dot expenseDot"/><p>Money out</p><h2>{money(expenses)}</h2><small>{income?`${(expenses/income*100).toFixed(0)}% of money in`:"No ratio yet"}</small></div><div className="metric"><span className="dot balanceDot"/><p>Today</p><h2>{money(sum(today,"income")-sum(today,"expense"))}</h2><small>{today.length} transaction{today.length===1?"":"s"} today</small></div></section>
- <section className="actionRow"><button className="quick incomeAction" onClick={()=>window.dispatchEvent(new CustomEvent("open-add-transaction",{detail:{type:"income"}}))}><span><Icon name="plus"/></span><div><b>Record Money In</b><small>Sale, salary, transfer or other income</small></div><Icon name="arrow"/></button><button className="quick expenseAction" onClick={()=>window.dispatchEvent(new CustomEvent("open-add-transaction",{detail:{type:"expense"}}))}><span><Icon name="minus"/></span><div><b>Record Money Out</b><small>Expense, purchase, bill or payment</small></div><Icon name="arrow"/></button></section>
- <section className="contentGrid"><article className="card aiCard"><div className="cardTitle"><div><span className="aiBadge"><Icon name="spark" size={16}/> Cacsms Intelligence</span><h3>Your financial brief</h3></div><span className="healthScore">{analysis?.score??"—"}<small>/100</small></span></div><div className="briefLead"><Icon name="trend"/><p>{analysis?.current?.net>=0?"Your financial position remains positive based on what you have recorded.":"Recorded expenses currently exceed recorded income."}</p></div><div className="insightList">{(analysis?.notes||["Analysing your records…"]).slice(0,4).map((x:string,i:number)=><div key={i}><span>{i+1}</span><p>{x}</p></div>)}</div>{analysis?.anomaly&&<div className="warningStrip"><b>Watch {analysis.anomaly.category}</b><span>Spending is {Math.round(analysis.anomaly.change)}% above last month.</span></div>}<a href="/reports" className="textLink">Explore full analysis <Icon name="arrow" size={16}/></a></article>
- <article className="card"><div className="cardTitle"><div><span className="eyebrow">CASH FLOW</span><h3>Income vs expenses</h3></div><div className="legend"><span><i className="incomeDot"/>Income</span><span><i className="expenseDot"/>Expenses</span></div></div><TrendChart data={trend}/></article></section>
- <section className="contentGrid lower"><article className="card"><div className="cardTitle"><div><span className="eyebrow">SPENDING</span><h3>Where did my money go?</h3></div><a className="textLink" href="/reports">View report</a></div><div className="categoryBody"><Donut items={cats}/><div className="categoryList">{cats.slice(0,6).map((c,i)=><div key={c.name}><span><i className={`catSwatch s${i}`}/>{c.name}</span><b>{money(c.value)}</b></div>)}{!cats.length&&<p className="empty">No expenses recorded yet.</p>}</div></div></article><article className="card"><div className="cardTitle"><div><span className="eyebrow">RECENT ACTIVITY</span><h3>Latest transactions</h3></div><button className="smallBtn" onClick={()=>window.dispatchEvent(new CustomEvent("open-add-transaction",{detail:{type:"income"}}))}>+ Add</button></div><div className="transactions">{txs.slice(0,7).map(t=><div className="tx" key={t.id}><span className={t.type==="income"?"txIcon incomeTx":"txIcon expenseTx"}>{t.type==="income"?"+":"−"}</span><div><b>{t.description||t.category}</b><small>{t.category} · {new Date(t.date).toLocaleDateString("en-NG",{day:"2-digit",month:"short"})}</small></div><strong className={t.type==="income"?"incomeText":"expenseText"}>{t.type==="income"?"+":"−"} {money(t.amount)}</strong><div className="txActions"><button onClick={()=>window.dispatchEvent(new CustomEvent("edit-transaction",{detail:t}))}>Edit</button><button onClick={()=>remove(t.id)} disabled={deleting===t.id}>{deleting===t.id?"…":"Delete"}</button></div></div>)}</div></article></section>
- <section className="fullCard"><AskCacsms/></section></div><TransactionModal onSaved={refresh}/></Shell>}
+import { useEffect, useMemo, useState } from "react";
+import AuthGate from "@/components/AuthGate";
+import Shell from "@/components/Shell";
+import TransactionModal from "@/components/TransactionModal";
+import AskCacsms from "@/components/AskCacsms";
+import { Icon } from "@/components/Icons";
+import { TrendChart, Donut } from "@/components/Charts";
+import { Transaction } from "@/lib/types/finance";
+const money = (n: number) =>
+    new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: "NGN",
+      maximumFractionDigits: 0,
+    }).format(n),
+  sum = (a: Transaction[], t: "income" | "expense") =>
+    a.filter((x) => x.type === t).reduce((s, x) => s + x.amount, 0);
+
+function greetingForHour(hour: number) {
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+export default function Dashboard() {
+  const [txs, setTxs] = useState<Transaction[]>([]),
+    [analysis, setAnalysis] = useState<any>(null),
+    [viewer, setViewer] = useState<{ user?: { name?: string } } | null>(null),
+    [localTime, setLocalTime] = useState<Date | null>(null),
+    [loading, setLoading] = useState(true),
+    [deleting, setDeleting] = useState("");
+  const refresh = async () => {
+    setLoading(true);
+    const [t, a, me] = await Promise.all([
+      fetch("/api/transactions", { cache: "no-store" }).then((r) => r.json()),
+      fetch("/api/analysis", { cache: "no-store" }).then((r) => r.json()),
+      fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()),
+    ]);
+    setTxs(t);
+    setAnalysis(a);
+    setViewer(me);
+    setLoading(false);
+  };
+  useEffect(() => {
+    refresh();
+  }, []);
+  useEffect(() => {
+    const updateTime = () => setLocalTime(new Date());
+    updateTime();
+    const timer = window.setInterval(updateTime, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const month = useMemo(() => {
+      const n = new Date();
+      return txs.filter((t) => {
+        const d = new Date(t.date);
+        return (
+          d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear()
+        );
+      });
+    }, [txs]),
+    today = useMemo(() => {
+      const s = new Date().toDateString();
+      return txs.filter((t) => new Date(t.date).toDateString() === s);
+    }, [txs]),
+    income = sum(month, "income"),
+    expenses = sum(month, "expense"),
+    net = income - expenses;
+  const cats = useMemo(() => {
+    const m = new Map<string, number>();
+    month
+      .filter((t) => t.type === "expense")
+      .forEach((t) => m.set(t.category, (m.get(t.category) || 0) + t.amount));
+    return [...m]
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [month]);
+  const trend = useMemo(() => {
+    const n = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(n.getFullYear(), n.getMonth() - 5 + i, 1),
+        arr = txs.filter((t) => {
+          const z = new Date(t.date);
+          return (
+            z.getMonth() === d.getMonth() && z.getFullYear() === d.getFullYear()
+          );
+        });
+      return {
+        label: d.toLocaleString("en", { month: "short" }),
+        income: sum(arr, "income"),
+        expense: sum(arr, "expense"),
+      };
+    });
+  }, [txs]);
+  async function remove(id: string) {
+    if (!confirm("Delete this transaction?")) return;
+    setDeleting(id);
+    await fetch(`/api/transactions?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    setDeleting("");
+    refresh();
+  }
+  return (
+    <AuthGate>
+      <Shell>
+        <div className="page">
+          <section className="welcome">
+            <div>
+              <span className="eyebrow">YOUR MONEY, CLEARLY UNDERSTOOD</span>
+              <h1>
+                {localTime ? greetingForHour(localTime.getHours()) : "Welcome"}
+                {viewer?.user?.name
+                  ? `, ${viewer.user.name.trim().split(/\s+/)[0]}`
+                  : ""}
+                .
+              </h1>
+              <p>
+                Your live financial position for{" "}
+                {(localTime || new Date()).toLocaleString("en-NG", {
+                  month: "long",
+                  year: "numeric",
+                })}
+                .
+              </p>
+            </div>
+            <div className="periodPill">This month</div>
+          </section>
+          <section className="heroGrid">
+            <div className="metric primaryMetric">
+              <span className="metricIcon">
+                <Icon name="wallet" />
+              </span>
+              <p>Net position</p>
+              <h2>{loading ? "—" : money(net)}</h2>
+              <small>
+                {income
+                  ? `${Math.max(0, (net / income) * 100).toFixed(0)}% of recorded income retained`
+                  : "Record income to begin"}
+              </small>
+            </div>
+            <div className="metric">
+              <span className="dot incomeDot" />
+              <p>Money in</p>
+              <h2>{money(income)}</h2>
+              <small className={analysis?.incomeChange >= 0 ? "up" : "down"}>
+                {analysis
+                  ? `${analysis.incomeChange >= 0 ? "↑" : "↓"} ${Math.abs(analysis.incomeChange).toFixed(1)}% vs last month`
+                  : "—"}
+              </small>
+            </div>
+            <div className="metric">
+              <span className="dot expenseDot" />
+              <p>Money out</p>
+              <h2>{money(expenses)}</h2>
+              <small>
+                {income
+                  ? `${((expenses / income) * 100).toFixed(0)}% of money in`
+                  : "No ratio yet"}
+              </small>
+            </div>
+            <div className="metric">
+              <span className="dot balanceDot" />
+              <p>Today</p>
+              <h2>{money(sum(today, "income") - sum(today, "expense"))}</h2>
+              <small>
+                {today.length} transaction{today.length === 1 ? "" : "s"} today
+              </small>
+            </div>
+          </section>
+          <section className="actionRow">
+            <button
+              className="quick incomeAction"
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("open-add-transaction", {
+                    detail: { type: "income" },
+                  }),
+                )
+              }
+            >
+              <span>
+                <Icon name="plus" />
+              </span>
+              <div>
+                <b>Record Money In</b>
+                <small>Sale, salary, transfer or other income</small>
+              </div>
+              <Icon name="arrow" />
+            </button>
+            <button
+              className="quick expenseAction"
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("open-add-transaction", {
+                    detail: { type: "expense" },
+                  }),
+                )
+              }
+            >
+              <span>
+                <Icon name="minus" />
+              </span>
+              <div>
+                <b>Record Money Out</b>
+                <small>Expense, purchase, bill or payment</small>
+              </div>
+              <Icon name="arrow" />
+            </button>
+          </section>
+          <section className="contentGrid">
+            <article className="card aiCard">
+              <div className="cardTitle">
+                <div>
+                  <span className="aiBadge">
+                    <Icon name="spark" size={16} /> Cacsms Intelligence
+                  </span>
+                  <h3>Your financial brief</h3>
+                </div>
+                <span className="healthScore">
+                  {analysis?.score ?? "—"}
+                  <small>/100</small>
+                </span>
+              </div>
+              <div className="briefLead">
+                <Icon name="trend" />
+                <p>
+                  {analysis?.current?.net >= 0
+                    ? "Your financial position remains positive based on what you have recorded."
+                    : "Recorded expenses currently exceed recorded income."}
+                </p>
+              </div>
+              <div className="insightList">
+                {(analysis?.notes || ["Analysing your records…"])
+                  .slice(0, 4)
+                  .map((x: string, i: number) => (
+                    <div key={i}>
+                      <span>{i + 1}</span>
+                      <p>{x}</p>
+                    </div>
+                  ))}
+              </div>
+              {analysis?.anomaly && (
+                <div className="warningStrip">
+                  <b>Watch {analysis.anomaly.category}</b>
+                  <span>
+                    Spending is {Math.round(analysis.anomaly.change)}% above
+                    last month.
+                  </span>
+                </div>
+              )}
+              <a href="/reports" className="textLink">
+                Explore full analysis <Icon name="arrow" size={16} />
+              </a>
+            </article>
+            <article className="card">
+              <div className="cardTitle">
+                <div>
+                  <span className="eyebrow">CASH FLOW</span>
+                  <h3>Income vs expenses</h3>
+                </div>
+                <div className="legend">
+                  <span>
+                    <i className="incomeDot" />
+                    Income
+                  </span>
+                  <span>
+                    <i className="expenseDot" />
+                    Expenses
+                  </span>
+                </div>
+              </div>
+              <TrendChart data={trend} />
+            </article>
+          </section>
+          <section className="contentGrid lower">
+            <article className="card">
+              <div className="cardTitle">
+                <div>
+                  <span className="eyebrow">SPENDING</span>
+                  <h3>Where did my money go?</h3>
+                </div>
+                <a className="textLink" href="/reports">
+                  View report
+                </a>
+              </div>
+              <div className="categoryBody">
+                <Donut items={cats} />
+                <div className="categoryList">
+                  {cats.slice(0, 6).map((c, i) => (
+                    <div key={c.name}>
+                      <span>
+                        <i className={`catSwatch s${i}`} />
+                        {c.name}
+                      </span>
+                      <b>{money(c.value)}</b>
+                    </div>
+                  ))}
+                  {!cats.length && (
+                    <p className="empty">No expenses recorded yet.</p>
+                  )}
+                </div>
+              </div>
+            </article>
+            <article className="card">
+              <div className="cardTitle">
+                <div>
+                  <span className="eyebrow">RECENT ACTIVITY</span>
+                  <h3>Latest transactions</h3>
+                </div>
+                <button
+                  className="smallBtn"
+                  onClick={() =>
+                    window.dispatchEvent(
+                      new CustomEvent("open-add-transaction", {
+                        detail: { type: "income" },
+                      }),
+                    )
+                  }
+                >
+                  + Add
+                </button>
+              </div>
+              <div className="transactions">
+                {txs.slice(0, 7).map((t) => (
+                  <div className="tx" key={t.id}>
+                    <span
+                      className={
+                        t.type === "income"
+                          ? "txIcon incomeTx"
+                          : "txIcon expenseTx"
+                      }
+                    >
+                      {t.type === "income" ? "+" : "−"}
+                    </span>
+                    <div>
+                      <b>{t.description || t.category}</b>
+                      <small>
+                        {t.category} ·{" "}
+                        {new Date(t.date).toLocaleDateString("en-NG", {
+                          day: "2-digit",
+                          month: "short",
+                        })}
+                      </small>
+                    </div>
+                    <strong
+                      className={
+                        t.type === "income" ? "incomeText" : "expenseText"
+                      }
+                    >
+                      {t.type === "income" ? "+" : "−"} {money(t.amount)}
+                    </strong>
+                    <div className="txActions">
+                      <button
+                        onClick={() =>
+                          window.dispatchEvent(
+                            new CustomEvent("edit-transaction", { detail: t }),
+                          )
+                        }
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => remove(t.id)}
+                        disabled={deleting === t.id}
+                      >
+                        {deleting === t.id ? "…" : "Delete"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+          <section className="fullCard">
+            <AskCacsms />
+          </section>
+        </div>
+        <TransactionModal onSaved={refresh} />
+      </Shell>
+    </AuthGate>
+  );
+}

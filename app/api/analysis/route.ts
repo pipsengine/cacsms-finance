@@ -1,6 +1,4 @@
-import { NextResponse } from "next/server";
-import { getFinanceRepository } from "@/lib/repositories";
-import { answerFinanceQuestion, buildInsights } from "@/lib/services/finance";
-const USER="USR-001";
-export async function GET(){return NextResponse.json(buildInsights(await getFinanceRepository().listTransactions(USER)))}
-export async function POST(req:Request){const {question}=await req.json();if(!question?.trim())return NextResponse.json({error:"Ask a question about your money."},{status:400});const txs=await getFinanceRepository().listTransactions(USER);return NextResponse.json({answer:answerFinanceQuestion(question,txs)})}
+import {NextResponse} from 'next/server';import {getFinanceRepository} from '@/lib/repositories';import {buildInsights,answerFinanceQuestion} from '@/lib/services/finance';import {currentUser} from '@/lib/platform/auth';import {hydratePlatform} from '@/lib/platform/google-sync';import {entitlements} from '@/lib/platform/subscriptions';
+async function context(){await hydratePlatform();const u=await currentUser();if(!u)return null;const tx=await getFinanceRepository().listTransactions(u.id);return{u,tx}}
+export async function GET(req:Request){const c=await context();if(!c)return NextResponse.json({error:'Unauthenticated'},{status:401});const question=new URL(req.url).searchParams.get('q');return NextResponse.json(question?{answer:answerFinanceQuestion(question,c.tx)}:buildInsights(c.tx));}
+export async function POST(req:Request){const c=await context();if(!c)return NextResponse.json({error:'Unauthenticated'},{status:401});const e=entitlements(c.u.id);if(!e.features.some(x=>['basic_ai','advanced_ai'].includes(x)))return NextResponse.json({error:'AI analysis is not available on your plan.'},{status:403});const {question}=await req.json();if(!String(question||'').trim())return NextResponse.json({error:'Ask a question about your finances.'},{status:400});return NextResponse.json({answer:answerFinanceQuestion(String(question),c.tx),plan:e.planCode});}
