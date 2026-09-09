@@ -29,7 +29,7 @@
 
 ## Google Sheets backend
 
-The application uses a private Google Sheet through a Google Cloud service account. If credentials are not configured, it automatically runs against realistic in-memory demo data.
+The application uses a private Google Sheet through a Google Cloud service account. Google Sheets configuration is required; there is no mock-data or in-memory fallback.
 
 Create a worksheet named exactly `Transactions` with the following row-1 columns:
 
@@ -46,7 +46,7 @@ A ready-made CSV header template is included as `GOOGLE-SHEETS-TEMPLATE.csv`.
 4. Create a private Google Spreadsheet.
 5. Share the spreadsheet with the service-account email as **Editor**.
 6. Copy `.env.example` to `.env.local`.
-7. Add the spreadsheet ID, service-account email and private key.
+7. Add the spreadsheet ID and `GOOGLE_APPLICATION_CREDENTIALS` path to `.env.local`. Alternatively, add the service-account email and private key directly.
 8. Run `npm install` then `npm run dev`.
 
 The Google repository supports list, create, edit and delete (delete clears the matching sheet row). The repository interface is intentionally storage-agnostic so a future MSSQL repository can replace Google Sheets without redesigning the UI.
@@ -70,6 +70,18 @@ npm run dev
 ```
 
 Then open http://localhost:3000.
+
+## Deploy to Vercel
+
+Set these environment variables for Production and Preview in the Vercel project:
+
+```text
+GOOGLE_SHEETS_SPREADSHEET_ID
+GOOGLE_SERVICE_ACCOUNT_EMAIL
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+```
+
+Use the complete service-account private key, including its BEGIN/END lines. `GOOGLE_APPLICATION_CREDENTIALS` is intended for local development only because the downloaded credential file is not present in a Vercel deployment. Once the variables are configured, deployments from `main` use the live Google Sheet automatically.
 
 ## Production hardening before public launch
 
